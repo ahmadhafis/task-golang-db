@@ -14,6 +14,8 @@ type AccountInterface interface {
 	Update(*gin.Context)
 	Delete(*gin.Context)
 	List(*gin.Context)
+
+	My(*gin.Context)
 }
 
 type accountImplement struct {
