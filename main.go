@@ -48,6 +48,12 @@ func main() {
 	authRoute.POST("/login", authHandler.Login)
 	authRoute.POST("/upsert", authHandler.Upsert)
 
+	//grouping route with /transact
+	transactionHandler := handler.NewTransaction(db)
+	transactionRoutes := r.Group("/transact")
+	transactionRoutes.POST("/newtransact", transactionHandler.Create)
+	transactionRoutes.GET("/transactlist", transactionHandler.List)
+
 	r.Run()
 }
 
