@@ -30,27 +30,6 @@ func NewAuth(db *gorm.DB, signingKey []byte) AuthInterface {
 	}
 }
 
-func (a *authImplement) createJWT(auth *model.Auth) (string, error) {
-	// Create the jwt token signer
-	token := jwt.New(jwt.SigningMethodHS256)
-
-	// Add claims data or additional data (avoid to put secret information in the payload or header elements)
-	claims := token.Claims.(jwt.MapClaims)
-	claims["auth_id"] = auth.AuthID
-	claims["account_id"] = auth.AccountID
-	claims["username"] = auth.Username
-	claims["exp"] = time.Now().Add(time.Hour * 72).Unix() // Token expires in 72 hours
-
-	// Encode
-	tokenString, err := token.SignedString(a.signingKey)
-	if err != nil {
-		return "", err
-	}
-
-	// Return the token
-	return tokenString, nil
-}
-
 type authLoginPayload struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -75,7 +54,7 @@ func (a *authImplement) Login(c *gin.Context) {
 		First(&auth).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-				"error": "Login not valid",
+				"error": "username salah",
 			})
 			return
 		}
@@ -89,7 +68,7 @@ func (a *authImplement) Login(c *gin.Context) {
 	// Validate password
 	if err := bcrypt.CompareHashAndPassword([]byte(auth.Password), []byte(payload.Password)); err != nil {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": "Login not valid",
+			"error": "password salah",
 		})
 		return
 	}
@@ -102,6 +81,9 @@ func (a *authImplement) Login(c *gin.Context) {
 		})
 		return
 	}
+
+	// c.SetSameSite(http.SameSiteLaxMode) // Set SameSite attribute (for cross-origin requests)
+	// c.SetCookie("auth_token", token, 1*0, "/", "", false, true)
 
 	// Success response
 	c.JSON(http.StatusOK, gin.H{
@@ -178,4 +160,25 @@ func (a *authImplement) Upsert(c *gin.Context) {
 		"message": "Create success",
 		"data":    payload.Username,
 	})
+}
+
+func (a *authImplement) createJWT(auth *model.Auth) (string, error) {
+	// Create the jwt token signer
+	token := jwt.New(jwt.SigningMethodHS256)
+
+	// Add claims data or additional data (avoid to put secret information in the payload or header elements)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["auth_id"] = auth.AuthID
+	claims["account_id"] = auth.AccountID
+	claims["username"] = auth.Username
+	claims["exp"] = time.Now().Add(time.Hour * 72).Unix() // Token expires in 72 hours
+
+	// Encode
+	tokenString, err := token.SignedString(a.signingKey)
+	if err != nil {
+		return "", err
+	}
+
+	// Return the token
+	return tokenString, nil
 }

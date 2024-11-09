@@ -8,63 +8,79 @@ import (
 	"gorm.io/gorm"
 )
 
-type TransactionInterface interface {
-	Create(*gin.Context)
-	List(*gin.Context)
+type NewTransactionInterface interface {
+	NewTransaction(*gin.Context)
+	TransactionList(*gin.Context)
 }
 
-type TransactionImplement struct {
+type newTransactionImplement struct {
 	db *gorm.DB
 }
 
-func NewTransaction(db *gorm.DB) TransactionInterface {
-	return &TransactionImplement{
+func NewTrans(db *gorm.DB) NewTransactionInterface {
+	return &newTransactionImplement{
 		db: db,
 	}
 }
 
-func (a *TransactionImplement) Create(c *gin.Context) {
-	payload := model.Transaction{}
+// NewTransaction creates a new transaction and updates the account balance
+func (a *newTransactionImplement) NewTransaction(c *gin.Context) {
+	var data struct {
+		AccountID             int64  `json:"account_id"`
+		TransactionCategoryID *int64 `json:"transaction_category_id"`
+		FromAccountID         *int64 `json:"from_account_id"`
+		ToAccountID           *int64 `json:"to_account_id"`
+		Amount                int64  `json:"amount"`
+	}
 
-	// bind JSON Request to payload
-	err := c.BindJSON(&payload)
-	if err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
+	// Bind JSON to data struct
+	if err := c.ShouldBindJSON(&data); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Create data
-	result := a.db.Create(&payload)
-	if result.Error != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": result.Error.Error(),
-		})
+	// Create new transaction record
+	transaction := model.Transaction{
+		AccountID:             data.AccountID,
+		TransactionCategoryID: data.TransactionCategoryID,
+		FromAccountID:         data.FromAccountID,
+		ToAccountID:           data.ToAccountID,
+		Amount:                data.Amount,
+	}
+
+	// Save transaction to the database
+	if err := a.db.Create(&transaction).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Success response
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Create success",
-		"data":    payload,
-	})
+	// Retrieve the account and update balance
+	var account model.Account
+	if err := a.db.First(&account, data.AccountID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Account not found"})
+		return
+	}
+
+	account.Balance += data.Amount
+	a.db.Save(&account)
+
+	// Return the created transaction
+	c.JSON(http.StatusOK, transaction)
 }
 
-func (a *TransactionImplement) List(c *gin.Context) {
-	// Prepare empty result
-	var transactions []model.Transaction
-
-	// Find and get all transactions data and put to &transactions
-	if err := a.db.Find(&transactions).Error; err != nil {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+// TransactionList retrieves transactions by account_id, ordered by transaction date
+func (a *newTransactionImplement) TransactionList(c *gin.Context) {
+	accountID := c.Query("account_id")
+	if accountID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "account_id is required"})
 		return
 	}
 
-	// Success response
-	c.JSON(http.StatusOK, gin.H{
-		"data": transactions,
-	})
+	var transaction []model.Transaction
+	if err := a.db.Where("account_id = ?", accountID).Order("transaction_date desc").Find(&transaction).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, transaction)
 }

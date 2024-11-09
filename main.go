@@ -31,6 +31,13 @@ func main() {
 	signingKey := os.Getenv("SIGNING_KEY")
 
 	r := gin.Default()
+
+	// grouping route with /auth
+	authHandler := handler.NewAuth(db, []byte(signingKey))
+	authRoute := r.Group("/auth")
+	authRoute.POST("/login", authHandler.Login)
+	authRoute.POST("/upsert", authHandler.Upsert)
+
 	// grouping route with /account
 	accountHandler := handler.NewAccount(db)
 	accountRoutes := r.Group("/account")
@@ -39,26 +46,35 @@ func main() {
 	accountRoutes.PATCH("/update/:id", accountHandler.Update)
 	accountRoutes.DELETE("/delete/:id", accountHandler.Delete)
 	accountRoutes.GET("/list", accountHandler.List)
+	accountRoutes.POST("/topup", accountHandler.TopUp)
 
+	// middleware := middleware.AuthMiddleware(signingKey)
 	accountRoutes.GET("/my", middleware.AuthMiddleware(signingKey), accountHandler.My)
+	accountRoutes.GET("/balance", middleware.AuthMiddleware(signingKey), accountHandler.Balance)
+	accountRoutes.POST("/transfer", middleware.AuthMiddleware(signingKey), accountHandler.Transfer)
+	accountRoutes.GET("/mutation", middleware.AuthMiddleware(signingKey), accountHandler.Mutation)
 
-	// grouping route with /auth
-	authHandler := handler.NewAuth(db, []byte(signingKey))
-	authRoute := r.Group("/auth")
-	authRoute.POST("/login", authHandler.Login)
-	authRoute.POST("/upsert", authHandler.Upsert)
+	// grouping route with /transaction-category
+	transaction_categoryHandler := handler.NewTransCat(db)
+	transaction_categoryRoutes := r.Group("/transaction-category")
+	transaction_categoryRoutes.POST("/create", transaction_categoryHandler.Create)
+	transaction_categoryRoutes.GET("/read/:id", transaction_categoryHandler.Read)
+	transaction_categoryRoutes.PATCH("/update/:id", transaction_categoryHandler.Update)
+	transaction_categoryRoutes.DELETE("/delete/:id", transaction_categoryHandler.Delete)
+	transaction_categoryRoutes.GET("/list", transaction_categoryHandler.List)
 
-	//grouping route with /transact
-	transactionHandler := handler.NewTransaction(db)
-	transactionRoutes := r.Group("/transact")
-	transactionRoutes.POST("/newtransact", transactionHandler.Create)
-	transactionRoutes.GET("/transactlist", transactionHandler.List)
+	transaction_categoryRoutes.GET("/my", middleware.AuthMiddleware(signingKey), transaction_categoryHandler.My)
 
-	r.Run()
+	transactionHandler := handler.NewTrans(db)
+	transactionRoutes := r.Group("/transaction")
+	transactionRoutes.POST("/new", transactionHandler.NewTransaction)
+	transactionRoutes.GET("/list", transactionHandler.TransactionList)
+
+	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
 }
 
 func NewDatabase() *gorm.DB {
-	// dsn := "host=147.139.143.164 port=5432 user=batch2_trainee_1 password=nasi_goreng_trainee_1 dbname=batch2_trainee_1 sslmode=disable TimeZone=Asia/Jakarta"
+	// dsn := "host=localhost port=5432 user=postgres dbname=digi sslmode=disable TimeZone=Asia/Jakarta"
 	dsn := os.Getenv("DATABASE")
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
