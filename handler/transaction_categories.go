@@ -115,7 +115,7 @@ func (a *transcategImplement) Update(c *gin.Context) {
 	}
 
 	// Update data
-	transcategImplement.Nama = payload.Nama
+	transcategImplement.Name = payload.Name
 	a.db.Save(transcategImplement)
 
 	// Success response
